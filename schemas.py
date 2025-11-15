@@ -12,37 +12,74 @@ Model name is converted to lowercase for the collection name:
 """
 
 from pydantic import BaseModel, Field
-from typing import Optional
+from typing import Optional, List
 
-# Example schemas (replace with your own):
+# Learning app schemas for C# curriculum
 
+class Topic(BaseModel):
+    """
+    Topic collection
+    Represents a high-level subject in the C# curriculum (e.g., Variables, Strings, OOP)
+    Collection name: "topic"
+    """
+    title: str = Field(..., description="Topic title")
+    slug: str = Field(..., description="URL-friendly identifier")
+    description: Optional[str] = Field(None, description="Short description")
+    order: int = Field(..., ge=0, description="Display order")
+
+class Lesson(BaseModel):
+    """
+    Lesson collection
+    Represents a single lesson under a topic
+    Collection name: "lesson"
+    """
+    topic_id: str = Field(..., description="Reference to Topic _id (string)")
+    title: str = Field(..., description="Lesson title")
+    slug: str = Field(..., description="URL-friendly identifier")
+    content: str = Field(..., description="Markdown content of the lesson")
+    order: int = Field(..., ge=0, description="Display order within topic")
+    level: str = Field("beginner", description="beginner | intermediate | advanced")
+
+class ExerciseOption(BaseModel):
+    key: str = Field(..., description="Option key like A, B, C, D")
+    text: str = Field(..., description="Option text")
+
+class Exercise(BaseModel):
+    """
+    Exercise collection
+    Multiple-choice or small code reading questions attached to a lesson
+    Collection name: "exercise"
+    """
+    lesson_id: str = Field(..., description="Reference to Lesson _id (string)")
+    question: str = Field(..., description="Question text")
+    type: str = Field("mcq", description="mcq | text")
+    options: Optional[List[ExerciseOption]] = Field(None, description="Options for MCQ")
+    answer: Optional[str] = Field(None, description="Correct answer key or sample answer for text")
+    explanation: Optional[str] = Field(None, description="Explanation of the answer")
+    order: int = Field(..., ge=0, description="Display order within lesson")
+
+class Progress(BaseModel):
+    """
+    Progress collection
+    Tracks a user's completion per lesson
+    Collection name: "progress"
+    """
+    user_id: str = Field(..., description="User identifier (client-generated)")
+    lesson_id: str = Field(..., description="Lesson id")
+    status: str = Field("completed", description="completed | in_progress")
+    score: Optional[float] = Field(None, ge=0, le=100, description="Score percentage for exercises")
+
+# Example schemas (left for reference)
 class User(BaseModel):
-    """
-    Users collection schema
-    Collection name: "user" (lowercase of class name)
-    """
-    name: str = Field(..., description="Full name")
-    email: str = Field(..., description="Email address")
-    address: str = Field(..., description="Address")
-    age: Optional[int] = Field(None, ge=0, le=120, description="Age in years")
-    is_active: bool = Field(True, description="Whether user is active")
+    name: str
+    email: str
+    address: str
+    age: Optional[int] = None
+    is_active: bool = True
 
 class Product(BaseModel):
-    """
-    Products collection schema
-    Collection name: "product" (lowercase of class name)
-    """
-    title: str = Field(..., description="Product title")
-    description: Optional[str] = Field(None, description="Product description")
-    price: float = Field(..., ge=0, description="Price in dollars")
-    category: str = Field(..., description="Product category")
-    in_stock: bool = Field(True, description="Whether product is in stock")
-
-# Add your own schemas here:
-# --------------------------------------------------
-
-# Note: The Flames database viewer will automatically:
-# 1. Read these schemas from GET /schema endpoint
-# 2. Use them for document validation when creating/editing
-# 3. Handle all database operations (CRUD) directly
-# 4. You don't need to create any database endpoints!
+    title: str
+    description: Optional[str] = None
+    price: float
+    category: str
+    in_stock: bool = True
