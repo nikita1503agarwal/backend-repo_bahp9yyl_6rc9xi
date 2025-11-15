@@ -3,10 +3,8 @@ from typing import List, Optional
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
-from bson import ObjectId
 
 from database import db, create_document, get_documents
-from schemas import Topic, Lesson, Exercise, Progress
 
 app = FastAPI(title="C# Learning Platform API")
 
@@ -62,7 +60,7 @@ def test_database():
         response["database"] = f"❌ Error: {str(e)[:50]}"
     return response
 
-# Seed minimal curriculum if empty
+# Seed curriculum (idempotent)
 @app.post("/api/seed")
 def seed():
     if db is None:
@@ -72,65 +70,93 @@ def seed():
     if topics_count > 0:
         return {"status": "ok", "message": "Already seeded"}
 
-    # Create Topics
-    basics_id = create_document("topic", {
-        "title": "C# Basics",
-        "slug": "csharp-basics",
-        "description": "Start with characters, strings, variables, and types.",
-        "order": 0
-    })
-    oop_id = create_document("topic", {
-        "title": "Object-Oriented Programming",
-        "slug": "oop",
-        "description": "Classes, objects, inheritance, interfaces.",
-        "order": 1
-    })
+    def topic(title: str, slug: str, description: str, order: int) -> str:
+        return create_document("topic", {
+            "title": title,
+            "slug": slug,
+            "description": description,
+            "order": order
+        })
 
-    # Lessons under Basics
-    lesson_char_id = create_document("lesson", {
-        "topic_id": basics_id,
-        "title": "Characters in C#",
-        "slug": "characters",
-        "content": "# char in C#\nUse single quotes: char c = 'A';\nUnicode supported.\n",
-        "order": 0,
-        "level": "beginner"
-    })
-    lesson_string_id = create_document("lesson", {
-        "topic_id": basics_id,
-        "title": "Strings in C#",
-        "slug": "strings",
-        "content": "# string in C#\nImmutable sequences of characters.\nInterpolation: $\"Hello {name}\"\n",
-        "order": 1,
-        "level": "beginner"
-    })
+    def lesson(topic_id: str, title: str, slug: str, content: str, order: int, level: str = "beginner") -> str:
+        return create_document("lesson", {
+            "topic_id": topic_id,
+            "title": title,
+            "slug": slug,
+            "content": content,
+            "order": order,
+            "level": level
+        })
 
-    # Exercises
-    create_document("exercise", {
-        "lesson_id": lesson_char_id,
-        "question": "Which literal defines a char?",
-        "type": "mcq",
-        "options": [
-            {"key": "A", "text": "'A'"},
-            {"key": "B", "text": "\"A\""},
-            {"key": "C", "text": "A"}
-        ],
-        "answer": "A",
-        "explanation": "char uses single quotes in C#.",
-        "order": 0
-    })
-    create_document("exercise", {
-        "lesson_id": lesson_string_id,
-        "question": "What is string interpolation prefix?",
-        "type": "mcq",
-        "options": [
-            {"key": "A", "text": "$"},
-            {"key": "B", "text": "@"},
-            {"key": "C", "text": "#"}
-        ],
-        "answer": "A",
-        "explanation": "Use $ before string literal for interpolation.",
-        "order": 0
-    })
+    def mcq(lesson_id: str, question: str, options, answer: str, explanation: str, order: int):
+        return create_document("exercise", {
+            "lesson_id": lesson_id,
+            "question": question,
+            "type": "mcq",
+            "options": options,
+            "answer": answer,
+            "explanation": explanation,
+            "order": order
+        })
+
+    def textq(lesson_id: str, question: str, answer: str, explanation: str, order: int):
+        return create_document("exercise", {
+            "lesson_id": lesson_id,
+            "question": question,
+            "type": "text",
+            "answer": answer,
+            "explanation": explanation,
+            "order": order
+        })
+
+    # Topics
+    t_basics = topic("C# Basics", "csharp-basics", "Start with characters, strings, variables, and types.", 0)
+    t_types = topic("Types & Variables", "types-variables", "Value vs reference types, var, constants.", 1)
+    t_control = topic("Control Flow", "control-flow", "if/else, switch, loops.", 2)
+    t_methods = topic("Methods", "methods", "Parameters, return values, overloading.", 3)
+    t_arrays = topic("Arrays & Collections", "arrays-collections", "Arrays, List<T>, Dictionary<TKey,TValue>.", 4)
+    t_oop = topic("Object-Oriented Programming", "oop", "Classes, objects, inheritance, interfaces.", 5)
+    t_ex = topic("Exceptions", "exceptions", "try/catch, custom exceptions, finally.", 6)
+    t_linq = topic("LINQ", "linq", "Querying collections with LINQ.", 7)
+    t_async = topic("Async & Await", "async-await", "Tasks, async methods, await.", 8)
+
+    # Lessons and exercises (representative sample for each topic)
+    l_char = lesson(t_basics, "Characters in C#", "characters", "# char in C#\nUse single quotes: char c = 'A';\nUnicode supported.\n", 0)
+    l_string = lesson(t_basics, "Strings in C#", "strings", "# string in C#\nImmutable sequences of characters.\nInterpolation: $\"Hello {name}\"\n", 1)
+    mcq(l_char, "Which literal defines a char?", [
+        {"key": "A", "text": "'A'"},
+        {"key": "B", "text": "\"A\""},
+        {"key": "C", "text": "A"}
+    ], "A", "char uses single quotes in C#.", 0)
+    mcq(l_string, "What is the string interpolation prefix?", [
+        {"key": "A", "text": "$"},
+        {"key": "B", "text": "@"},
+        {"key": "C", "text": "#"}
+    ], "A", "Use $ before string literal for interpolation.", 0)
+
+    l_types = lesson(t_types, "Value vs Reference Types", "value-vs-reference", "# Types\nint, double, bool are value types.\nstring, arrays, class instances are reference types.\n", 0)
+    textq(l_types, "Is string a value or reference type? Answer with 'value' or 'reference'.", "reference", "string is a reference type in C#.", 0)
+
+    l_control = lesson(t_control, "if/else and switch", "if-switch", "# Control Flow\nUse if/else and switch to branch logic.\n", 0)
+    textq(l_control, "What keyword starts a switch block?", "switch", "A switch statement starts with the 'switch' keyword.", 0)
+
+    l_methods = lesson(t_methods, "Methods & Parameters", "methods-params", "# Methods\nMethods can be static or instance.\nPass by value by default; use 'ref'/'out' for by-ref.\n", 0)
+    textq(l_methods, "What keyword passes an argument by reference (short form)?", "ref", "Use 'ref' to pass by reference; 'out' for uninitialized output.", 0)
+
+    l_arrays = lesson(t_arrays, "Arrays & Lists", "arrays-lists", "# Arrays & Collections\nint[] arr = new int[3];\nvar list = new List<int>();\n", 0)
+    textq(l_arrays, "Write the type name for a growable integer collection in generics.", "List<int>", "List<int> is a generic growable list.", 0)
+
+    l_oop = lesson(t_oop, "Classes & Inheritance", "classes-inheritance", "# OOP\nclass Animal { }\nclass Dog : Animal { }\nInterfaces use ': IInterface'.\n", 0)
+    textq(l_oop, "Fill in: class Dog : ____ { } (base class is Animal)", "Animal", "Inheritance uses ':' followed by the base class.", 0)
+
+    l_ex = lesson(t_ex, "Handling Exceptions", "handling-exceptions", "# Exceptions\ntry { ... } catch (Exception ex) { ... } finally { ... }\n", 0)
+    textq(l_ex, "What block runs regardless of exceptions?", "finally", "The 'finally' block always runs.", 0)
+
+    l_linq = lesson(t_linq, "Intro to LINQ", "intro-linq", "# LINQ\nvar evens = numbers.Where(n => n % 2 == 0);\n", 0)
+    textq(l_linq, "LINQ: method to filter elements by predicate?", "Where", "Use .Where(predicate) to filter.", 0)
+
+    l_async = lesson(t_async, "Async & Await", "async-await-lesson", "# Async\nasync Task<int> GetAsync() { await Task.Delay(10); return 1; }\n", 0)
+    textq(l_async, "Keyword used before a method to enable awaiting inside it.", "async", "Mark methods with 'async' to use 'await'.", 0)
 
     return {"status": "ok", "message": "Seeded"}
 
@@ -166,5 +192,6 @@ class ProgressIn(BaseModel):
 def set_progress(p: ProgressIn):
     if db is None:
         raise HTTPException(status_code=500, detail="Database not configured")
+    from database import create_document
     create_document("progress", p.model_dump())
     return {"status": "ok"}
